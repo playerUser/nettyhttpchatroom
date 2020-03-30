@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+    <title>Document</title>
+    <link rel="stylesheet" href="/bootstrap/css/bootstrap.min.css">
+    <link rel="stylesheet" href="/rolling/css/rolling.css">
+    <link rel="stylesheet" href="/stylesheets/style.css">
+    <script type="text/javascript" src="/javascripts/jquery-1.11.2.min.js"></script>
+    <script type="text/javascript" src="/bootstrap/js/bootstrap.min.js"></script>
+    <script type="text/javascript" src="/javascripts/jquery.cookie.js"></script>
+    <script type="text/javascript" src="/rolling/js/rolling.js"></script>
+    <script type="text/javascript" src="/javascripts/Public.js"></script>
+</head>
+<body class="room">
+<div class="scrollbar-macosx">
+    <div class="header">
+        <div class="toptext">
+            <a href="#" id="backToHall">
+                <span class="glyphicon glyphicon-arrow-left"></span> 返回大厅
+            </a>
+        </div>
+        <ul class="topnavlist">
+            <li class="userlist" id="userListButton">
+                <a><span class="glyphicon glyphicon-th-list"></span>用户列表</a>
+                <div class="popover fade bottom in">
+                    <div class="arrow"></div>
+                    <h3 class="popover-title">
+                        在线用户<span id="userNum"></span>人
+                    </h3>
+                    <div class="popover-content scrollbar-macosx">
+                        <ul id="userList">
+                        </ul>
+                    </div>
+                </div>
+            </li>
+        </ul>
+        <div class="clapboard hidden"></div>
+    </div>
+    <div class="main container">
+        <div class="col-md-12">
+            <ul class="chat_info">
+
+            </ul>
+        </div>
+    </div>
+    <div class="input">
+        <div class="center">
+            <div class="tools"></div>
+            <div class="text">
+                <div class="col-xs-10 col-sm-11">
+                    <input type="text" class="form-control" placeholder="输入聊天信息...">
+                </div>
+                <div class="col-xs-2 col-sm-1">
+                    <a id="subxx" role="button"><span class="glyphicon glyphicon-share-alt"></span></a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script type="text/javascript">
+
+    //从请求参数中，获取参数的函数
+    function getQueryString(name) {
+        var reg = new RegExp("(^|&)" + name + "=([^&]*)(&|$)");
+        var r = window.location.search.substr(1).match(reg);
+        if (r != null)
+            return unescape(r[2]);
+        return null;
+    }
+
+    //绑定输入框和主窗体
+    var inputBox = $('.text input');
+    var mainBox = $('.main .chat_info');
+
+    //获取用户名 头像id 以及房间号
+    var username = $.cookie('userName');
+    var userPortrait = $.cookie('userPortrait');
+    var roomId = getQueryString("room");
+
+
+    //使用websocket与后台连接
+    var websocket = null;
+
+    //用于给后台发消息
+    var jsonObj = {
+        "protocol": 1,
+        "timeNow": "",
+        "message": ""
+    };
+
+    //判断当前浏览器是否支持WebSocket
+    if ('WebSocket' in window) {
+        websocket = new WebSocket("ws://" + window.location.host + "/ws?userName=" + username + "&userPortrait="
+            + userPortrait + "&room=" + roomId);
+
+    }
+    else {
+        alert('不支持当前浏览器')
+    }
+
+    //连接错误提示
+    websocket.onerror = function () {
+        alert("连接错误");
+    };
+
+    //连接关闭后跳转
+    websocket.onclose = function () {
+        // alert("连接关闭,即将回到大厅");
+        window.location.href = 'index.html'; // 页面跳转
+    };
+
+    //系统信息显示函数
+    function system_message(message) {
+        if (message !== '') {
+            mainBox.html(mainBox.html() +
+                '<li class="systeminfo">' +
+                '<span>' + message + '</span></li>');
+        }
+    }
+
+
+    //websocket连接成功后，在聊天主窗体，显示欢迎信息
+    websocket.onopen = function () {
+
+        system_message("[" + username + "]欢迎来到聊天室");
+
+    };
+
+
+    //2代表用户列表查询
+    var queryRoomNum = {
+        "protocol": 2
+    };
+
+    //获取用户列表
+    $('#userListButton').click(function () {
+        websocket.send(JSON.stringify(queryRoomNum));
+    });
+
+    //发送信息 并在聊天主窗体显示
+    function sends_message(userName, userPortrait, message) {
+        if (message !== '') {
+            var timeNow = new Date();
+            jsonObj.timeNow = timeNow;
+            jsonObj.message = message;
+            websocket.send(JSON.stringify(jsonObj));
+            mainBox.append(
+                '<li class="right">' +
+                '<img src="/images/user/' + userPortrait + '.png" alt=""><b>' + userName + '</b><i>' + timeNow.getHours() + ':' + timeNow.getMinutes() + '</i><div class="aaa">' + message + '</div></li>');
+        }
+        var scrollbar = $('.scrollbar-macosx.scroll-content.scroll-scrolly_visible');
+        // 滚动条滚到最下面
+        scrollbar.animate({
+            scrollTop: scrollbar.prop('scrollHeight')
+        }, 500);
+    }
+
+    //收到信息后在聊天窗体显示的函数
+    function receive_message(userName, userPortrait, message, timeSend) {
+        if (message !== '') {
+            console.log(userPortrait);
+            mainBox.html(mainBox.html() +
+                '<li class="left">' +
+                '<img src="/images/user/' + userPortrait + '.png" alt=""><b>' + userName + '</b><i>' + timeSend.getHours() + ':' + timeSend.getMinutes() + '</i><div class="aaa">' + message + '</div></li>');
+        }
+        var scrollbar = $('.scrollbar-macosx.scroll-content.scroll-scrolly_visible');
+        // 滚动条滚到最下面
+        scrollbar.animate({
+            scrollTop: scrollbar.prop('scrollHeight')
+        }, 500);
+    }
+
+
+    // receive_message("管理员", 12, "大家好，欢迎大家畅所欲言");
+    //接收到消息的回调方法
+    websocket.onmessage = function (event) {
+        var receive = JSON.parse(event.data);
+
+        //1代表收到聊天信息
+        if (receive.protocol === 1) {
+            if (receive.userName !== username) {
+                receive_message(receive.userName, receive.portraitId, receive.message, new Date(receive.timeSend));
+            }
+            //2代表获取房间的用户列表
+        } else if (receive.protocol === 2) {
+            $('#userNum').html(receive.userName);
+            $('#userList').empty();
+            $.each(receive.userList, function (index, element) {
+                $('#userList').append('<li><img src="images/user/' + element.portraitId + '.png" alt="portrait_'
+                    + element.portraitId + '"> <b> ' + element.userName + ' </b></li>  '
+                )
+
+            });
+
+        }
+
+
+    };
+
+
+    inputBox.focus();
+    $('#subxx').click(function (event) {
+        var str = inputBox.val(); // 获取聊天内容
+        str = str.replace(/\</g, '&lt;');
+        str = str.replace(/\>/g, '&gt;');
+        str = str.replace(/\n/g, '<br/>');
+        // str = str.replace(/\[em_([0-9]*)\]/g, '<img src="images/face/$1.gif" alt="" />');
+        if (str !== '') {
+
+            sends_message(username, userPortrait, str); // sends_message(昵称,头像id,聊天内容);
+
+
+        }
+        inputBox.val(''); // 清空输入框
+        inputBox.focus(); // 输入框获取焦点
+
+
+    });
+
+    inputBox.keypress(function (e) {
+        if (e.which === 13) {
+            $('#subxx').click();
+        }
+    });
+
+    $('#backToHall').click(function () {
+        websocket.close();
+        //window.location.href = 'index.html'; // 页面跳转
+    });
+
+</script>
+</div>
+</body>
+</html>
